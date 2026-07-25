@@ -1,0 +1,110 @@
+name: Build macOS DMG (Intel x64)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: macos-13   # Intel x64 runner
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # ── Build React client ─────────────────────────────────────────────────
+      - name: Install client deps
+        run: cd client && npm install --legacy-peer-deps
+
+      - name: Build client
+        run: cd client && npm run build
+
+      # ── Build Express server ───────────────────────────────────────────────
+      - name: Install server deps
+        run: cd server && npm install
+
+      - name: Build server (esbuild bundle)
+        run: cd server && npm run build
+
+      # Rebuild native modules (better-sqlite3, sharp) for Electron's Node version
+      - name: Rebuild native modules for Electron
+        run: |
+          cd server
+          ELECTRON_VERSION=$(node -e "const p=require('../node_modules/electron/package.json'); console.log(p.version)")
+          echo "Electron version: $ELECTRON_VERSION"
+          npx @electron/rebuild -v "$ELECTRON_VERSION" -m . --only better-sqlite3 --arch x64 || true
+
+      # ── Install root (Electron) deps ───────────────────────────────────────
+      - name: Install root deps
+        run: npm install
+
+      # ── Generate placeholder icon ──────────────────────────────────────────
+      - name: Generate app icon
+        run: |
+          mkdir -p assets
+          if [ ! -f assets/icon.icns ]; then
+            python3 - <<'PY'
+          import struct, zlib
+          def png_chunk(tag, data):
+              return struct.pack('>I', len(data)) + tag + data + struct.pack('>I', zlib.crc32(tag+data)&0xffffffff)
+          w,h = 1024,1024
+          raw = b''.join(b'\x00'+bytes([20,180,220]*w) for _ in range(h))
+          img = png_chunk(b'IHDR', struct.pack('>IIBBBBB',w,h,8,2,0,0,0))
+          img += png_chunk(b'IDAT', zlib.compress(raw,9))
+          img += png_chunk(b'IEND', b'')
+          with open('/tmp/icon1024.png','wb') as f:
+              f.write(b'\x89PNG\r\n\x1a\n'+img)
+          PY
+            mkdir -p /tmp/icon.iconset
+            for size in 16 32 64 128 256 512 1024; do
+              sips -z $size $size /tmp/icon1024.png --out /tmp/icon.iconset/icon_${size}x${size}.png 2>/dev/null
+            done
+            iconutil -c icns /tmp/icon.iconset -o assets/icon.icns 2>/dev/null || cp /tmp/icon1024.png assets/icon.icns
+          fi
+
+      # ── Package DMG ────────────────────────────────────────────────────────
+      - name: Build DMG
+        run: npm run build:dmg
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List release output
+        run: ls -lh release/
+
+      # ── Upload artifact ────────────────────────────────────────────────────
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: HumanSEO-AI-macOS-Intel
+          path: release/*.dmg
+          retention-days: 30
+
+      # ── Create GitHub Release (on tag push) ────────────────────────────────
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.dmg
+          name: HumanSEO AI ${{ github.ref_name }}
+          body: |
+            ## HumanSEO AI Desktop — macOS Intel
+
+            ### Install
+            1. Download the `.dmg` below
+            2. Open it, drag **HumanSEO AI** → Applications
+            3. First launch: right-click the app → **Open** (bypasses Gatekeeper)
+
+            ### First-time setup
+            1. Open the app
+            2. Go to **API Manager**
+            3. Add your OpenAI API key
+            4. Start generating articles!
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
