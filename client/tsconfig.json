@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": false,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@workspace/api-client-react": ["./workspace-libs/api-client-react/src"],
+      "@workspace/api-zod": ["./workspace-libs/api-zod/src"]
+    }
+  },
+  "include": ["src", "workspace-libs"],
+  "exclude": ["node_modules", "dist"]
+}

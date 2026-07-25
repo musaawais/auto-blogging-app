@@ -1,0 +1,53 @@
+{
+  "name": "humanseo-ai",
+  "version": "1.0.0",
+  "description": "HumanSEO AI Desktop — fully self-contained",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "cd client && npm install --legacy-peer-deps && npm run build",
+    "build:server": "cd server && npm install && npm run build",
+    "build:dmg": "npm run build && electron-builder --mac dmg --x64"
+  },
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.humanseo.ai",
+    "productName": "HumanSEO AI",
+    "copyright": "Copyright 2025 HumanSEO",
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**",
+      "**/node_modules/sharp/**"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [{ "target": "dmg", "arch": ["x64"] }],
+      "icon": "assets/icon.icns",
+      "darkModeSupport": true,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "HumanSEO AI",
+      "contents": [
+        { "x": 380, "y": 170, "type": "link", "path": "/Applications" },
+        { "x": 130, "y": 170, "type": "file" }
+      ],
+      "window": { "width": 520, "height": 380 }
+    },
+    "extraResources": [
+      { "from": "server/dist", "to": "server/dist" },
+      { "from": "client/dist", "to": "client/dist" }
+    ],
+    "directories": { "output": "release" },
+    "files": [
+      "electron/**/*",
+      "assets/**/*",
+      "package.json"
+    ]
+  }
+}
